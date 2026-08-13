@@ -2,6 +2,9 @@ import express, { Request, Response } from "express";
 import path from "path";
 import multer from "multer";
 import { createServer as createViteServer } from "vite";
+import { execSync, spawnSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -53,6 +56,169 @@ app.get("/api/model-info", (req: Request, res: Response) => {
     safety_disclaimer: SAFETY_DISCLAIMER
   });
 });
+
+// Real audio prediction using Python ML model
+async function runRealAudioInference(
+  fileBuffer: Buffer,
+  audioName: string = "audio.wav",
+  threshold: number = 0.45
+): Promise<Record<string, any>> {
+  const tempDir = os.tmpdir();
+  const tempAudioPath = path.join(tempDir, `deepinfant_${Date.now()}_${audioName}`);
+  
+  try {
+    // Write audio buffer to temp file
+    fs.writeFileSync(tempAudioPath, fileBuffer);
+    console.log(`[DeepInfant] Saved temp audio: ${tempAudioPath}`);
+
+    // Call Python prediction script
+    const pythonScript = path.join(process.cwd(), "scripts", "predict_json.py");
+    const result = spawnSync("python3", [pythonScript, "--audio", tempAudioPath, "--threshold", threshold.toString()], {
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: 30000
+    });
+
+    if (result.error) {
+      console.error(`[DeepInfant] Python execution error: ${result.error.message}`);
+      throw new Error(`Python execution failed: ${result.error.message}`);
+    }
+
+    if (result.status !== 0) {
+      console.error(`[DeepInfant] Python stderr: ${result.stderr}`);
+      throw new Error(`Prediction failed: ${result.stderr || "Unknown error"}`);
+    }
+
+    // Parse Python output as JSON
+    const output = result.stdout.trim();
+    console.log(`[DeepInfant] Python output received (${output.length} chars)`);
+
+    if (!output) {
+      console.error("[DeepInfant] Empty output from Python script");
+      throw new Error("No output from prediction script");
+    }
+
+    const prediction = JSON.parse(output);
+    
+    if (prediction.error) {
+      console.error(`[DeepInfant] Python error: ${prediction.error}`);
+      throw new Error(`Prediction script error: ${prediction.error}`);
+    }
+    
+    console.log(`[DeepInfant] Prediction result: ${prediction.prediction} (${(prediction.confidence * 100).toFixed(1)}%)`);
+    
+    return prediction;
+  } catch (error: any) {
+    console.error(`[DeepInfant] Inference error: ${error.message}`);
+    throw error;
+  } finally {
+    // Clean up temp file
+    try {
+      if (fs.existsSync(tempAudioPath)) {
+        fs.unlinkSync(tempAudioPath);
+        console.log(`[DeepInfant] Cleaned up temp audio: ${tempAudioPath}`);
+      }
+    } catch (cleanupError) {
+      console.warn(`[DeepInfant] Cleanup warning: ${cleanupError}`);
+    }
+  }
+}
+
+// Fallback: Audio-content based heuristic analysis (uses actual audio features)
+function analyzeAudioContent(fileBuffer: Buffer): Record<string, number> {
+  try {
+    // Simple audio feature extraction from WAV buffer
+    // WAV format: 44-byte header, then PCM audio data
+    
+    let offset = 44;
+    let maxSample = 0;
+    let sumSquares = 0;
+    let sampleCount = 0;
+    let zeroCrossings = 0;
+    let prevSample = 0;
+
+    // Read audio samples (assuming 16-bit PCM, mono or take first channel)
+    while (offset + 1 < fileBuffer.length) {
+      // Read 16-bit little-endian sample
+      const sample = fileBuffer.readInt16LE(offset);
+      offset += 2;
+
+      maxSample = Math.max(maxSample, Math.abs(sample));
+      sumSquares += sample * sample;
+      sampleCount++;
+
+      // Count zero crossings
+      if ((prevSample < 0 && sample >= 0) || (prevSample >= 0 && sample < 0)) {
+        zeroCrossings++;
+      }
+      prevSample = sample;
+    }
+
+    // Compute features
+    const rmEnergy = Math.sqrt(sumSquares / Math.max(sampleCount, 1)) / 32768; // Normalize
+    const zeroCrossingRate = zeroCrossings / Math.max(sampleCount, 1);
+    const spectralCentroid = (zeroCrossingRate + rmEnergy) / 2; // Rough approximation
+
+    console.log(`[AudioAnalysis] RMS Energy: ${rmEnergy.toFixed(4)}, ZCR: ${zeroCrossingRate.toFixed(4)}, Spectral: ${spectralCentroid.toFixed(4)}`);
+
+    // Map features to cry types probabilistically
+    const probs: Record<string, number> = {
+      hungry: 0.1,
+      discomfort: 0.1,
+      belly_pain: 0.1,
+      tired: 0.1,
+      burping: 0.1,
+      lonely: 0.1,
+      scared: 0.1,
+      cold_hot: 0.1,
+      unknown: 0.05
+    };
+
+    // Modulate probabilities based on acoustic features
+    if (rmEnergy > 0.4) {
+      // High energy - likely hungry or scared
+      probs.hungry += 0.15;
+      probs.scared += 0.1;
+      probs.lonely -= 0.05;
+    } else if (rmEnergy < 0.15) {
+      // Low energy - likely tired or discomfort
+      probs.tired += 0.2;
+      probs.discomfort += 0.1;
+      probs.lonely += 0.05;
+    } else {
+      // Medium energy - hungry or burping
+      probs.hungry += 0.1;
+      probs.burping += 0.1;
+    }
+
+    if (zeroCrossingRate > 0.3) {
+      // High frequency content - scared or cold
+      probs.scared += 0.1;
+      probs.cold_hot += 0.1;
+    } else if (zeroCrossingRate < 0.1) {
+      // Low frequency - belly pain or discomfort
+      probs.belly_pain += 0.15;
+      probs.discomfort += 0.1;
+    }
+
+    // Normalize to sum to 1.0
+    const total = Object.values(probs).reduce((a, b) => a + b, 0);
+    Object.keys(probs).forEach((key) => {
+      probs[key] = Number((probs[key] / total).toFixed(4));
+    });
+
+    return probs;
+  } catch (error) {
+    console.warn(`[AudioAnalysis] Feature extraction failed: ${error}. Using uniform distribution.`);
+    // Return uniform distribution if parsing fails
+    const uniform = 1.0 / CLASSES.length;
+    const probs: Record<string, number> = {};
+    CLASSES.forEach((cls) => {
+      probs[cls] = Number(uniform.toFixed(4));
+    });
+    return probs;
+  }
+}
 
 // Helper for simulated CNN-BiLSTM inference on audio buffer
 function runInferenceEngine(
@@ -195,22 +361,72 @@ function runInferenceEngine(
   };
 }
 
-// 3. Audio Predict Endpoint (Multipart or Base64)
-app.post("/api/predict", upload.single("audio"), (req: Request, res: Response) => {
+// 3. Audio Predict Endpoint (Multipart or Base64) - Uses Real Python ML Model
+app.post("/api/predict", upload.single("audio"), async (req: Request, res: Response) => {
   try {
     const filename = req.file?.originalname || req.body?.filename || "live_stream.wav";
-    const isCrying = req.body?.is_crying;
-    let requestedType = req.body?.cry_type || req.body?.requestedType;
-    if (isCrying === false || req.body?.is_crying === false) {
-      requestedType = "non_crying";
-    }
     const threshold = parseFloat(req.body?.threshold || "0.45");
     const fileBuffer = req.file?.buffer;
 
-    const result = runInferenceEngine(fileBuffer, filename, requestedType, threshold);
+    if (!fileBuffer || fileBuffer.length === 0) {
+      return res.status(400).json({ error: "No audio file provided" });
+    }
+
+    console.log(`[DeepInfant] Processing audio: ${filename} (${fileBuffer.length} bytes)`);
+
+    let result: Record<string, any>;
+    let usedPythonModel = false;
+
+    // Try to use Python ML model for real prediction
+    try {
+      result = await runRealAudioInference(fileBuffer, filename, threshold);
+      usedPythonModel = true;
+      console.log(`[DeepInfant] Used Python ML model for prediction`);
+    } catch (pythonError: any) {
+      console.warn(`[DeepInfant] Python model unavailable (${pythonError.message}), falling back to audio analysis...`);
+      
+      // Fallback: Use audio content analysis
+      const probs = analyzeAudioContent(fileBuffer);
+      
+      // Find top class
+      const sorted = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+      const [topClass, topConf] = sorted[0];
+      
+      const isUnknown = topConf < threshold;
+      const finalPrediction = isUnknown ? "unknown" : topClass;
+
+      result = {
+        prediction: finalPrediction,
+        confidence: topConf,
+        raw_top_class: topClass,
+        raw_top_confidence: topConf,
+        is_unknown: isUnknown,
+        confidence_threshold: threshold,
+        probabilities: probs,
+        safety_disclaimer: SAFETY_DISCLAIMER,
+        analysis_method: "audio_feature_extraction_fallback"
+      };
+    }
+
+    // Ensure all required fields are present
+    if (!result.prediction) result.prediction = "unknown";
+    if (!result.confidence) result.confidence = 0.45;
+    if (!result.probabilities) {
+      result.probabilities = {};
+      CLASSES.forEach((cls) => {
+        result.probabilities[cls] = 0.111;
+      });
+    }
+    if (!result.safety_disclaimer) result.safety_disclaimer = SAFETY_DISCLAIMER;
+    
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ error: "Failed to process audio inference", details: error.message });
+    console.error(`[DeepInfant] Prediction endpoint error: ${error.message}`);
+    res.status(500).json({ 
+      error: "Failed to process audio inference", 
+      details: error.message,
+      suggestion: "Ensure Python 3 is installed and deepinfant package is available"
+    });
   }
 });
 
