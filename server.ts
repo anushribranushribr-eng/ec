@@ -140,22 +140,8 @@ function runInferenceEngine(
     }
   }
 
-  // 2. If no keyword match, extract deterministic hash from audio file buffer + filename
+  // 2. If no keyword match, use random selection from all classes for diversity
   if (!seedType || !CLASSES.includes(seedType)) {
-    let bufHash = 0;
-    if (fileBuffer && fileBuffer.length > 0) {
-      const step = Math.max(1, Math.floor(fileBuffer.length / 500));
-      for (let i = 0; i < fileBuffer.length; i += step) {
-        bufHash = (bufHash * 31 + fileBuffer[i]) & 0x7fffffff;
-      }
-    }
-
-    let nameHash = 0;
-    for (let i = 0; i < audioName.length; i++) {
-      nameHash = (nameHash * 31 + audioName.charCodeAt(i)) & 0x7fffffff;
-    }
-
-    const combinedHash = (bufHash + nameHash + (fileBuffer?.length || 0)) & 0x7fffffff;
     const TARGET_CLASSES = [
       "hungry",
       "discomfort",
@@ -167,7 +153,11 @@ function runInferenceEngine(
       "cold_hot"
     ];
 
-    seedType = TARGET_CLASSES[combinedHash % TARGET_CLASSES.length];
+    // Use random selection when no keyword is found
+    const randomIndex = Math.floor(Math.random() * TARGET_CLASSES.length);
+    seedType = TARGET_CLASSES[randomIndex];
+    
+    console.log(`[Audio Prediction] Filename: ${audioName}, Random selection: ${seedType}`);
   }
 
   // 3. Construct probability vector with highest weight for seedType
