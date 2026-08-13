@@ -30,18 +30,6 @@ export function App() {
         onClose={() => setIsSafetyModalOpen(false)}
       />
 
-      {/* Full-Bleed Statement Band */}
-      <section className="w-full bg-[#ff4f2b] text-[#000000] py-10 px-6 border-y border-[#3c3c3c] my-8">
-        <div className="max-w-[1280px] mx-auto text-center space-y-2">
-          <h2 className="font-sans font-light text-2xl sm:text-4xl uppercase tracking-tight">
-            INFANT ACOUSTIC INTELLIGENCE — REAL-TIME CRY CLASSIFICATION ENGINE
-          </h2>
-          <p className="font-mono text-sm uppercase font-semibold">
-            SYSTEM VERSION: 2.0.4 • STFT MULTI-BIN SPECTROGRAM INFERENCE
-          </p>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="bg-[#000000] border-t border-[#3c3c3c] text-[#737373] py-8 text-xs font-mono">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
