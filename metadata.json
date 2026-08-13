@@ -1,0 +1,6 @@
+{
+  "name": "DeepInfant V2 - AI Infant Cry Analysis",
+  "description": "Production-quality AI infant cry classification system with real-time audio analysis, CNN-LSTM model, 128-bin Mel-spectrogram processing, Core ML export, and safety features.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

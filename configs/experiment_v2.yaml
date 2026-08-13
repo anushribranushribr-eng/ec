@@ -1,0 +1,28 @@
+# Reproducible Experiment Configuration (DeepInfant V2)
+system:
+  project_name: "DeepInfant V2 - Experiment V2"
+  seed: 2026
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  target_duration_sec: 4.0
+  n_fft: 2048
+  hop_length: 512
+  n_mels: 128
+
+model:
+  backbone: "cnn_lstm"
+  dropout: 0.35
+
+training:
+  batch_size: 32
+  epochs: 40
+  learning_rate: 0.001
+  loss_function: "focal_loss"
+
+split:
+  split_by_subject: true
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15

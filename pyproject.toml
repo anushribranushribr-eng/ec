@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepinfant"
+version = "2.0.0"
+description = "AI-Powered Infant Cry Classification System with STFT, 128-bin Mel-Spectrogram, CNN-BiLSTM, and Core ML Export."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  { name = "DeepInfant Engineering Team" }
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Multimedia :: Sound/Audio :: Analysis"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Chivo+Mono:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --color-ember-orange: #ff4f2b;
+  --color-void-black: #000000;
+  --color-carbon: #1a1a1a;
+  --color-graphite-border: #3c3c3c;
+  --color-steel-mid: #737373;
+  --color-fog-light: #bfbfbf;
+  --color-bone-white: #f5f5f5;
+  --font-twk-everett: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-switzer: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-chivo-mono: 'Chivo Mono', monospace;
+}
+
+body {
+  background-color: #000000;
+  color: #f5f5f5;
+  font-family: var(--font-switzer);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar in void black theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #3c3c3c;
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ff4f2b;
+}
+
+/* Ensure sharp 0px radius rule across inputs and buttons */
+input, button, select, textarea, div {
+  border-radius: 0px !important;
+}
+

@@ -1,0 +1,28 @@
+# DeepInfant V2 Production Configuration
+system:
+  project_name: "DeepInfant V2"
+  version: "2.0.0"
+  device: "cpu"
+  seed: 42
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  target_duration_sec: 4.0
+  n_fft: 2048
+  hop_length: 512
+  n_mels: 128
+  f_min: 50.0
+  f_max: 8000.0
+  normalize_amplitude: true
+
+model:
+  backbone: "cnn_lstm"
+  num_classes: 9
+
+inference:
+  confidence_threshold: 0.50
+  smoothing_alpha: 0.30
+  window_sec: 0.975
+  stride_sec: 0.25
+  cry_detection_vad: true
